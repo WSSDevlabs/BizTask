@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+
+# Vite build output
+dist/
+dist-ssr/
+
+# Next.js artifacts (leftover from project init)
+.next/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Coverage reports
+coverage/
+
+# Firebase local state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+
+# OS artifacts
+*.pem
+
+# Vercel config (contains project/org IDs)
+.vercel/
+
+# Claude Code agent skills (system directory, not project code)
+.agents/
+
+# Dev utility scripts
+push_env.ps1
+
+# Log files
+server_log.txt
+build_output.txt
+*.txt
+
+# skills lock
+skills-lock.json

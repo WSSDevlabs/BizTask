@@ -1,0 +1,222 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── HELPERS ──────────────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Role is stored in the employees collection; the auth token does NOT carry it.
+    // We cache the role lookup with a function so every rule doesn't repeat it.
+    function getEmployee() {
+      return get(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+
+    function userRole() {
+      // The master HR account is identified by UID stored in the employees doc.
+      // Fallback to 'Staff' if no record found.
+      return isAuthenticated()
+        ? (exists(/databases/$(database)/documents/employees/$(request.auth.uid))
+            ? getEmployee().data.role
+            : 'Staff')
+        : null;
+    }
+
+    function isExecutive() {
+      return isAuthenticated() && userRole() == 'Executive';
+    }
+
+    function isHR() {
+      return isAuthenticated() && (userRole() == 'HR' || isExecutive());
+    }
+
+    function isStaff() {
+      return isAuthenticated();  // any logged-in user
+    }
+
+    // ── EMPLOYEES ─────────────────────────────────────────────────────────────
+    // Workers need to look up their own email during login (Worker ID lookup).
+    // Allow list-read on the employees collection only for the workerId field.
+    // Full read allowed for authenticated users (needed for role lookups).
+
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      // Public read is intentionally NOT granted — login page does the Worker ID
+      // lookup only AFTER the user has entered their credentials on the client.
+      // Firebase Auth handles the actual authentication.
+      allow create: if isHR();
+      allow update: if isHR() || request.auth.uid == employeeId;
+      allow delete: if isExecutive();
+    }
+
+    // ── CUSTOMERS ─────────────────────────────────────────────────────────────
+
+    match /customers/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── ORDERS ────────────────────────────────────────────────────────────────
+
+    match /orders/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── INVOICES ──────────────────────────────────────────────────────────────
+
+    match /invoices/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── QUOTATIONS ────────────────────────────────────────────────────────────
+
+    match /quotations/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── PAYMENTS ──────────────────────────────────────────────────────────────
+
+    match /payments/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isExecutive();
+    }
+
+    // ── EXPENSES ──────────────────────────────────────────────────────────────
+
+    match /expenses/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── DEPARTMENTS ───────────────────────────────────────────────────────────
+
+    match /departments/{id} {
+      allow read: if isStaff();
+      allow create, update, delete: if isExecutive();
+    }
+
+    // ── PROJECTS ──────────────────────────────────────────────────────────────
+
+    match /projects/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── TASKS ─────────────────────────────────────────────────────────────────
+
+    match /tasks/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── COMMENTS ──────────────────────────────────────────────────────────────
+
+    match /comments/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isStaff() && request.auth.uid == resource.data.authorId;
+      allow delete: if isExecutive() || request.auth.uid == resource.data.authorId;
+    }
+
+    // ── CRM: LEADS / DEALS / ACTIVITIES / CAMPAIGNS ───────────────────────────
+
+    match /leads/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    match /deals/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    match /activities/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isExecutive() || request.auth.uid == resource.data.createdBy;
+    }
+
+    match /campaigns/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── HR: LEAVE / ATTENDANCE ────────────────────────────────────────────────
+
+    match /leaveRequests/{id} {
+      allow read: if isStaff();
+      // Any staff member can submit their own leave
+      allow create: if isStaff();
+      // Only HR/Executive can approve/reject; staff can only update their own pending request
+      allow update: if isHR()
+        || (request.auth.uid == resource.data.employeeId && resource.data.status == 'Pending');
+      allow delete: if isHR();
+    }
+
+    match /leaveBalances/{id} {
+      allow read: if isStaff();
+      allow create, update: if isHR();
+      allow delete: if isExecutive();
+    }
+
+    match /attendance/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      // Own record or HR can update (e.g., manual correction)
+      allow update: if isHR() || request.auth.uid == resource.data.employeeId;
+      allow delete: if isExecutive();
+    }
+
+    // ── ASSETS ────────────────────────────────────────────────────────────────
+
+    match /assets/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── AUDIT LOG ─────────────────────────────────────────────────────────────
+    // Read-only for all authenticated users. Only the system (server-side) writes.
+    // Client-side writes allowed because we have no Cloud Functions yet — but
+    // restrict to authenticated users and immutable fields.
+
+    match /auditLogs/{id} {
+      allow read: if isExecutive();
+      allow create: if isAuthenticated();
+      // Audit logs are IMMUTABLE — no updates or deletes ever
+      allow update, delete: if false;
+    }
+
+    // ── NOTIFICATIONS ─────────────────────────────────────────────────────────
+
+    match /notifications/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();  // marking read
+      allow delete: if isAuthenticated();
+    }
+
+    // ── DENY ALL ELSE ─────────────────────────────────────────────────────────
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

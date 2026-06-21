@@ -1,0 +1,15 @@
+{
+  "explorer.excludeGitIgnore": true,
+  "files.exclude": {
+    "**/*.tsbuildinfo": true,
+    "**/node_modules": true
+  },
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.tabSize": 2,
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.suggest.autoImports": true,
+  "emmet.includeLanguages": {
+    "typescriptreact": "html"
+  }
+}
