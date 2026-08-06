@@ -11,7 +11,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   UserPlus,
@@ -25,6 +24,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { PrimaryButton } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 
 type CustomerFormData = z.infer<typeof customerSchema>;
 
@@ -95,9 +96,10 @@ export default function CustomersPage() {
       await addCustomer({
         name: data.name || "",
         company: data.company,
-        email: data.email || "",
+        email: data.email,
         phone: data.phone,
         address: data.address || "",
+        ...(data.businessRegNumber ? { businessRegNumber: data.businessRegNumber } : {}),
       });
       reset();
       setDialogOpen(false);
@@ -118,6 +120,8 @@ export default function CustomersPage() {
     );
   }, [customers, search]);
 
+  usePageHeader({ actions: <PrimaryButton onClick={() => setDialogOpen(true)}><UserPlus size={16} /> Add Customer</PrimaryButton> });
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Toast Notification */}
@@ -128,28 +132,8 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="bg-black text-white p-2.5 rounded-xl">
-            <Building size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-black">Customers</h1>
-            <p className="text-sm text-neutral-500">
-              {customers.length} client{customers.length !== 1 ? "s" : ""} in database
-            </p>
-          </div>
-        </div>
-
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-red-800 hover:bg-red-900 text-white font-medium rounded-lg transition focus:outline-none focus:ring-2 focus:ring-red-900 focus:ring-offset-2">
-              <UserPlus size={16} />
-              Add Customer
-            </button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg bg-white border border-neutral-200">
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg bg-white border border-neutral-200">
             <DialogHeader>
               <DialogTitle className="text-lg font-semibold text-black">
                 Add New Customer
@@ -186,11 +170,26 @@ export default function CustomersPage() {
                 )}
               </div>
 
+              {/* Business Registration Number */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-600 mb-1">
+                  Business Registration Number <span className="text-neutral-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  {...register("businessRegNumber")}
+                  placeholder="e.g. 202301012345 (SSM)"
+                  className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 bg-white text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-red-900 focus:border-red-900 transition"
+                />
+                {errors.businessRegNumber && (
+                  <p className="text-red-900/80 text-xs mt-1">{errors.businessRegNumber.message}</p>
+                )}
+              </div>
+
               {/* Email & Phone (side by side) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-neutral-600 mb-1">
-                    Professional Email <span className="text-neutral-400 font-normal">(optional)</span>
+                    Client Email <span className="text-red-900/80">*</span>
                   </label>
                   <input
                     {...register("email")}
@@ -256,21 +255,22 @@ export default function CustomersPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
 
       {/* Search Bar */}
-      <div className="relative mb-6">
-        <Search
-          size={16}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by company name..."
-          className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-neutral-200 bg-white text-black placeholder-neutral-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-900 focus:border-red-900 transition"
-        />
+      <div className="sticky top-0 z-10 bg-neutral-50 pb-4">
+        <div className="relative">
+          <Search
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
+          />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by company name..."
+            className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-neutral-200 bg-white text-black placeholder-neutral-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-900 focus:border-red-900 transition"
+          />
+        </div>
       </div>
 
       {/* Customer Table */}
@@ -290,7 +290,7 @@ export default function CustomersPage() {
               <thead className="bg-neutral-50 text-neutral-500 uppercase text-xs">
                 <tr>
                   <th className="px-6 py-3.5 font-medium">Company</th>
-                  <th className="px-6 py-3.5 font-medium">Tax ID / Name</th>
+                  <th className="px-6 py-3.5 font-medium">SSM Number</th>
                   <th className="px-6 py-3.5 font-medium">Email</th>
                   <th className="px-6 py-3.5 font-medium">Phone</th>
                   <th className="px-6 py-3.5 font-medium text-right">Actions</th>
@@ -322,7 +322,7 @@ export default function CustomersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-neutral-700 font-medium">
-                      {c.name || "—"}
+                      {c.businessRegNumber || "—"}
                     </td>
                     <td className="px-6 py-4 text-neutral-500">
                       <span className="inline-flex items-center gap-1.5">

@@ -4,8 +4,9 @@ import {
   Bell, Check, Trash2, AlertTriangle, CalendarClock, DollarSign, Trophy, XCircle,
 } from "lucide-react";
 import {
-  PageHeader, Card, LoadingState, EmptyState,
+  Card, LoadingState, EmptyState,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import {
   subscribeNotifications, markNotificationRead, deleteNotification,
 } from "@/lib/db";
@@ -47,16 +48,12 @@ export default function NotificationsPage() {
     await Promise.all(notifications.filter((n) => !n.read).map((n) => markNotificationRead(n.id)));
   }
 
+  usePageHeader({ actions: unreadCount > 0 ? <button onClick={markAllRead} className="flex items-center gap-1.5 text-sm text-red-800 hover:underline"><Check size={15} /> Mark all read</button> : undefined });
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="max-w-3xl mx-auto">
-      <PageHeader
-        icon={Bell}
-        title="Notifications"
-        subtitle={`${unreadCount} unread`}
-        actions={unreadCount > 0 ? <button onClick={markAllRead} className="flex items-center gap-1.5 text-sm text-red-800 hover:underline"><Check size={15} /> Mark all read</button> : undefined}
-      />
 
       <div className="flex gap-2 mb-4">
         {(["all", "unread"] as const).map((t) => (

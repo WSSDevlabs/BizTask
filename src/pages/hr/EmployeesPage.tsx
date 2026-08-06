@@ -6,11 +6,12 @@ import { UserCheck, Plus, Loader2, Trash2, Pencil, Upload, X } from "lucide-reac
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import {
-  PageHeader, PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
+  PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
   StatusBadge, SearchInput,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import { employeeSchema } from "@/lib/validations";
-import { createSystemUserAuth, uploadFile } from "@/lib/backend-utils";
+import { createSystemUserAuth, fileToDataUrl } from "@/lib/backend-utils";
 import {
   subscribeEmployees, addEmployee, updateEmployee, deleteEmployee, subscribeDepartments,
 } from "@/lib/db";
@@ -18,7 +19,12 @@ import { cn } from "@/lib/utils";
 import { Timestamp } from "firebase/firestore";
 import type { Employee, Department, EmployeeRole } from "@/types";
 
-type EmployeeFormData = z.infer<typeof employeeSchema> & { departmentId?: string; phone?: string };
+type EmployeeFormData = z.infer<typeof employeeSchema>;
+
+// Documents are stored inline as base64 in the employee's Firestore doc (no
+// Storage/Blaze plan needed), so each file must stay well under the 1 MiB
+// document cap since it accumulates with every other document on file.
+const MAX_DOC_BYTES = 400 * 1024;
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -59,11 +65,12 @@ export default function EmployeesPage() {
   async function onSubmit(data: EmployeeFormData) {
     setSubmitting(true); setError("");
     try {
-      await createSystemUserAuth(data.email, data.password);
-      await addEmployee({
+      const uid = await createSystemUserAuth(data.email, data.password);
+      await addEmployee(uid, {
         fullName: data.fullName, workerId: data.workerId, position: data.position,
-        email: data.email, role: data.role, departmentId: data.departmentId || undefined,
+        email: data.email, role: data.role,
         phone: data.phone, status: "Active", joinDate: Timestamp.now(),
+        ...(data.departmentId ? { departmentId: data.departmentId } : {}),
       });
       reset();
       setCreateOpen(false);
@@ -78,23 +85,20 @@ export default function EmployeesPage() {
     return role === "Executive" ? "black" : role === "HR" ? "red" : "neutral";
   }
 
+  usePageHeader({ actions: <PrimaryButton onClick={() => { reset(); setError(""); setCreateOpen(true); }}><Plus size={16} /> New Employee</PrimaryButton> });
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="max-w-6xl mx-auto">
-      <PageHeader
-        icon={UserCheck}
-        title="Employees"
-        subtitle="Staff directory and accounts"
-        actions={<PrimaryButton onClick={() => { reset(); setError(""); setCreateOpen(true); }}><Plus size={16} /> New Employee</PrimaryButton>}
-      />
-
-      <div className="flex flex-wrap gap-3 mb-5">
+      <div className="sticky top-0 z-10 bg-neutral-50 pb-4">
+        <div className="flex flex-wrap gap-3 mb-5">
         <SearchInput value={search} onChange={setSearch} placeholder="Search name or Worker ID..." />
         <select className={cn(inputClass, "max-w-[200px]")} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
           <option value="">All Departments</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -186,16 +190,22 @@ function EmployeeProfile({ employee, departments, onClose }: { employee: Employe
   const [departmentId, setDepartmentId] = useState(employee.departmentId ?? "");
   const [role, setRole] = useState<EmployeeRole>(employee.role);
   const [uploading, setUploading] = useState(false);
+  const [docError, setDocError] = useState("");
 
   async function save() {
-    await updateEmployee(employee.id, { fullName, position, phone, departmentId: departmentId || undefined, role });
+    await updateEmployee(employee.id, { fullName, position, phone, role, ...(departmentId ? { departmentId } : {}) });
     onClose();
   }
 
   async function handleUpload(file: File) {
+    if (file.size > MAX_DOC_BYTES) {
+      setDocError(`File too large. Max ${Math.floor(MAX_DOC_BYTES / 1024)} KB (stored inline in Firestore).`);
+      return;
+    }
+    setDocError("");
     setUploading(true);
     try {
-      const url = await uploadFile(file, `employees/${employee.id}`);
+      const url = await fileToDataUrl(file);
       const docs = [...(employee.documents ?? []), { name: file.name, url, uploadedAt: Timestamp.now() }];
       await updateEmployee(employee.id, { documents: docs });
       employee.documents = docs;
@@ -242,6 +252,8 @@ function EmployeeProfile({ employee, departments, onClose }: { employee: Employe
               Upload document
               <input type="file" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
             </label>
+            <p className="text-xs text-neutral-400 mt-1">Max {Math.floor(MAX_DOC_BYTES / 1024)} KB per file</p>
+            {docError && <p className="text-red-700 text-xs mt-1">{docError}</p>}
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">

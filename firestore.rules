@@ -59,6 +59,14 @@ service cloud.firestore {
       allow delete: if isExecutive();
     }
 
+    // ── PRODUCTS ──────────────────────────────────────────────────────────────
+
+    match /products/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
     // ── ORDERS ────────────────────────────────────────────────────────────────
 
     match /orders/{id} {
@@ -98,6 +106,31 @@ service cloud.firestore {
       allow create: if isStaff();
       allow update: if isStaff();
       allow delete: if isExecutive();
+    }
+
+    // ── SUPPLIERS ─────────────────────────────────────────────────────────────
+
+    match /suppliers/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── BILLS (Payables) ──────────────────────────────────────────────────────
+
+    match /bills/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── MONTHLY TARGETS ───────────────────────────────────────────────────────
+    // Read by all staff (Dashboard/Reports revenue-vs-target widgets); only
+    // Executive sets targets, matching the Reports page's nav role restriction.
+
+    match /monthlyTargets/{id} {
+      allow read: if isStaff();
+      allow create, update, delete: if isExecutive();
     }
 
     // ── DEPARTMENTS ───────────────────────────────────────────────────────────
@@ -192,6 +225,22 @@ service cloud.firestore {
       allow delete: if isExecutive();
     }
 
+    // ── SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+
+    match /subscriptions/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── EXTERNAL TOOLS (Project Management) ──────────────────────────────────
+
+    match /externalTools/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
     // ── AUDIT LOG ─────────────────────────────────────────────────────────────
     // Read-only for all authenticated users. Only the system (server-side) writes.
     // Client-side writes allowed because we have no Cloud Functions yet — but
@@ -211,6 +260,33 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();  // marking read
       allow delete: if isAuthenticated();
+    }
+
+    // ── PROJECT ACTIVITY ──────────────────────────────────────────────────────
+    // Feeds the Project Progress chart. Immutable — written once, never edited.
+
+    match /projectActivity/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
+
+    // ── MAINTENANCE ───────────────────────────────────────────────────────────
+    // Recurring renewals owned by project teams (e.g. client domain renewals).
+
+    match /maintenance/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isExecutive();
+    }
+
+    // ── COMPANY SETTINGS ──────────────────────────────────────────────────────
+    // Singleton doc (settings/company) holding the company logo etc. Any staff
+    // member can read it (used to render branding); only Executive can write.
+
+    match /settings/{id} {
+      allow read: if isStaff();
+      allow write: if isExecutive();
     }
 
     // ── DENY ALL ELSE ─────────────────────────────────────────────────────────

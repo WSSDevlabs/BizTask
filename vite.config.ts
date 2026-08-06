@@ -19,7 +19,7 @@ export default defineConfig({
           // React core — cached forever after first load
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // Firebase SDK — large but infrequently changes
-          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           // Animation — Framer Motion is sizeable
           'vendor-motion': ['framer-motion'],
           // PDF generation — always lazy since most users never print

@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { getStorage } from 'firebase/storage';
 import { env } from '@/lib/env';
 
 const app = getApps().length === 0
@@ -17,4 +16,3 @@ const secondaryApp =
 export const db            = getFirestore(app);
 export const auth          = getAuth(app);
 export const secondaryAuth = getAuth(secondaryApp);
-export const storage       = getStorage(app);

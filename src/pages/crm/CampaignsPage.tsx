@@ -3,8 +3,9 @@ import { Megaphone, Plus, Pencil, Trash2, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import {
-  PageHeader, PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
+  PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import {
   subscribeCampaigns, addCampaign, updateCampaign, deleteCampaign,
 } from "@/lib/db";
@@ -57,9 +58,9 @@ export default function CampaignsPage() {
   async function handleSave() {
     if (!name.trim()) { setError("Name is required"); return; }
     const payload = {
-      name, channel, budget: Number(budget) || 0, spend: Number(spend) || 0,
-      startDate: dateStringToTimestamp(startDate), endDate: dateStringToTimestamp(endDate),
-      description,
+      name, channel, budget: Number(budget) || 0, spend: Number(spend) || 0, description,
+      ...(startDate ? { startDate: dateStringToTimestamp(startDate) } : {}),
+      ...(endDate ? { endDate: dateStringToTimestamp(endDate) } : {}),
     };
     try {
       if (editing) await updateCampaign(editing.id, payload);
@@ -89,17 +90,12 @@ export default function CampaignsPage() {
     return c.metrics.conversions === 0 ? 0 : c.spend / c.metrics.conversions;
   }
 
+  usePageHeader({ actions: <PrimaryButton onClick={openCreate}><Plus size={16} /> New Campaign</PrimaryButton> });
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="max-w-6xl mx-auto">
-      <PageHeader
-        icon={Megaphone}
-        title="Campaigns"
-        subtitle="Marketing performance tracking"
-        actions={<PrimaryButton onClick={openCreate}><Plus size={16} /> New Campaign</PrimaryButton>}
-      />
-
       {campaigns.length === 0 ? (
         <Card><EmptyState icon={Megaphone} label="No campaigns yet" /></Card>
       ) : (

@@ -1,18 +1,49 @@
 import { cn } from '@/lib/utils';
 import { Loader2, Search, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+
+// ── LIVE COUNT-UP ──────────────────────────────────────────────────────────
+// Animates a number from its previous value to a new target whenever the
+// target changes (not just on mount) — used to make live Firestore-driven
+// stats feel alive instead of snapping instantly.
+
+export function useCountUp(target: number, duration = 900): number {
+  const [value, setValue] = useState(target);
+  const fromRef = useRef(0);
+  const firstRun = useRef(true);
+
+  useEffect(() => {
+    if (!Number.isFinite(target)) return;
+    const from = firstRun.current ? 0 : fromRef.current;
+    firstRun.current = false;
+    const startTime = performance.now();
+    let raf: number;
+    function tick(now: number) {
+      const t = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(from + (target - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = target;
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+
+  return Number.isFinite(target) ? value : target;
+}
 
 // ── PAGE HEADER ──────────────────────────────────────────────────────────────
 
 export function PageHeader({
   icon: Icon,
   title,
-  subtitle,
   actions,
 }: {
   icon?: LucideIcon;
   title: string;
+  /** @deprecated no longer rendered — page titles no longer show a description line */
   subtitle?: string;
   actions?: ReactNode;
 }) {
@@ -24,10 +55,7 @@ export function PageHeader({
             <Icon size={22} />
           </div>
         )}
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight leading-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-neutral-400 mt-0.5">{subtitle}</p>}
-        </div>
+        <h1 className="text-xl font-bold text-neutral-900 tracking-tight leading-tight">{title}</h1>
       </div>
       {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
@@ -47,10 +75,10 @@ export function PrimaryButton({
       disabled={isLoading || props.disabled}
       className={cn(
         'relative inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-150',
-        'bg-gradient-to-b from-red-700 to-red-800 shadow-sm shadow-red-900/30',
-        'hover:from-red-600 hover:to-red-700 hover:shadow-md hover:shadow-red-900/25 hover:-translate-y-px',
-        'active:translate-y-0 active:from-red-800 active:to-red-900 active:shadow-none',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2',
+        'bg-gradient-to-b from-sky-600 to-sky-700 shadow-sm shadow-sky-900/30',
+        'hover:from-sky-500 hover:to-sky-600 hover:shadow-md hover:shadow-sky-900/25 hover:-translate-y-px',
+        'active:translate-y-0 active:from-sky-700 active:to-sky-800 active:shadow-none',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2',
         'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm',
         className
       )}
@@ -149,8 +177,8 @@ export function Card({
   return (
     <div
       className={cn(
-        'bg-white rounded-2xl border border-neutral-200/80 shadow-sm',
-        hoverable && 'transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer',
+        'bg-white rounded-2xl border border-neutral-200/80 shadow-sm transition-all duration-300 hover:shadow-md',
+        hoverable && 'hover:-translate-y-0.5 cursor-pointer',
         className
       )}
     >
@@ -162,6 +190,7 @@ export function Card({
 // ── STAT CARD ────────────────────────────────────────────────────────────────
 
 type StatTrend = 'up' | 'down' | 'neutral';
+export type StatTone = 'blue' | 'emerald' | 'amber' | 'red';
 
 const trendColors: Record<StatTrend, string> = {
   up: 'text-emerald-600',
@@ -169,12 +198,30 @@ const trendColors: Record<StatTrend, string> = {
   neutral: 'text-neutral-400',
 };
 
+// Fixed semantic meaning, reused the same way on every page — never assigned
+// randomly: blue = neutral/total, emerald = positive/on-track, amber =
+// pending/attention, red = overdue/critical. `accent` is a legacy shorthand
+// for tone="red" kept for existing call sites.
+const statToneClasses: Record<StatTone, string> = {
+  blue:    'bg-gradient-to-br from-sky-500 to-sky-600',
+  emerald: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
+  amber:   'bg-gradient-to-br from-amber-500 to-amber-600',
+  red:     'bg-gradient-to-br from-red-700 to-red-900',
+};
+
+function StatCardValue({ value }: { value: string | number }) {
+  const animated = useCountUp(typeof value === 'number' ? value : 0);
+  if (typeof value !== 'number') return <>{value}</>;
+  return <>{Math.round(animated).toLocaleString()}</>;
+}
+
 export function StatCard({
   label,
   value,
   icon: Icon,
   hint,
   accent,
+  tone,
   trend,
   trendLabel,
 }: {
@@ -182,26 +229,27 @@ export function StatCard({
   value: string | number;
   icon: LucideIcon;
   hint?: string;
+  /** @deprecated use tone="red" instead */
   accent?: boolean;
+  tone?: StatTone;
   trend?: StatTrend;
   trendLabel?: string;
 }) {
+  const resolvedTone = tone ?? (accent ? 'red' : undefined);
   return (
-    <div className="group bg-white rounded-2xl border border-neutral-200/80 shadow-sm p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+    <div className="group bg-white rounded-2xl border border-neutral-200/80 shadow-sm p-5 h-full flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
       <div className="flex items-start justify-between mb-4">
         <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">{label}</span>
         <div
           className={cn(
-            'p-2 rounded-xl shadow-sm',
-            accent
-              ? 'bg-gradient-to-br from-red-700 to-red-900 text-white'
-              : 'bg-gradient-to-br from-neutral-800 to-black text-white'
+            'p-2 rounded-xl shadow-sm text-white',
+            resolvedTone ? statToneClasses[resolvedTone] : 'bg-gradient-to-br from-neutral-800 to-black'
           )}
         >
           <Icon size={15} />
         </div>
       </div>
-      <p className="text-2xl font-bold text-neutral-900 tabular-nums tracking-tight">{value}</p>
+      <p className="text-2xl font-bold text-neutral-900 tabular-nums tracking-tight"><StatCardValue value={value} /></p>
       <div className="flex items-center gap-2 mt-1.5">
         {hint && <p className="text-xs text-neutral-400">{hint}</p>}
         {trend && trendLabel && (
@@ -322,7 +370,7 @@ export function ProgressBar({
   const barColor = {
     red:     'bg-gradient-to-r from-red-700 to-red-500',
     green:   'bg-gradient-to-r from-emerald-600 to-emerald-400',
-    blue:    'bg-gradient-to-r from-blue-600 to-blue-400',
+    blue:    'bg-gradient-to-r from-sky-600 to-sky-400',
     amber:   'bg-gradient-to-r from-amber-500 to-amber-400',
     neutral: 'bg-gradient-to-r from-neutral-500 to-neutral-400',
   }[tone];

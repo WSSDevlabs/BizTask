@@ -1,67 +1,81 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { env } from "@/lib/env";
+import type { Employee } from "@/types";
 
 export type Role = "Executive" | "HR" | "Staff" | null;
 
 interface AuthContextType {
   user: User | null;
   role: Role;
+  employee: Employee | null;
   isLoading: boolean;
+  refreshEmployee: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   role: null,
+  employee: null,
   isLoading: true,
+  refreshEmployee: async () => {},
 });
 
 const HR_EMAIL = env.hrMasterEmail;
 
+async function lookupEmployee(email: string): Promise<Employee | null> {
+  const snap = await getDocs(
+    query(collection(db, "employees"), where("email", "==", email), limit(1))
+  );
+  if (snap.empty) return null;
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() } as Employee;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>(null);
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const refreshEmployee = useCallback(async () => {
+    if (!auth.currentUser?.email) return;
+    try {
+      const emp = await lookupEmployee(auth.currentUser.email);
+      setEmployee(emp);
+    } catch {
+      // keep previous value
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         setUser(null);
         setRole(null);
+        setEmployee(null);
         setIsLoading(false);
         return;
       }
 
       setUser(currentUser);
 
-      // HR master account
-      if (currentUser.email === HR_EMAIL) {
-        setRole("HR");
-        setIsLoading(false);
-        return;
-      }
-
-      // Look up role from employees collection
       try {
-        const snap = await getDocs(
-          query(
-            collection(db, "employees"),
-            where("email", "==", currentUser.email),
-            limit(1)
-          )
-        );
-        if (!snap.empty) {
-          const data = snap.docs[0].data();
+        const emp = await lookupEmployee(currentUser.email ?? "");
+        if (emp) {
           // Legacy: "Admin" maps to "Executive"
-          const empRole = data.role === "Admin" ? "Executive" : data.role;
-          setRole(empRole as Role);
+          const empRole = (emp.role as string) === "Admin" ? "Executive" : emp.role;
+          setRole(currentUser.email === HR_EMAIL ? "HR" : (empRole as Role));
+          setEmployee(emp);
         } else {
-          setRole("Staff");
+          setRole(currentUser.email === HR_EMAIL ? "HR" : "Staff");
+          setEmployee(null);
         }
       } catch {
-        setRole("Staff");
+        setRole(currentUser.email === HR_EMAIL ? "HR" : "Staff");
+        setEmployee(null);
       } finally {
         setIsLoading(false);
       }
@@ -71,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role, isLoading }}>
+    <AuthContext.Provider value={{ user, role, employee, isLoading, refreshEmployee }}>
       {children}
     </AuthContext.Provider>
   );

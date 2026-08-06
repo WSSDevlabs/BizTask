@@ -6,48 +6,14 @@ export const customerSchema = z.object({
   name: z.string().optional(),
   // Company is required for B2B invoicing context
   company: z.string().min(1, 'Company name is required'),
-  // Email is optional but useful for communication and invoicing
-  email: z.string().optional(),
+  // Client email is required — primary contact channel for invoicing/comms
+  email: z.string().min(1, 'Client email is required').email('A valid email address is required'),
   // Phone is required for direct contact
   phone: z.string().min(1, 'Phone number is required'),
   // Address is optional at validation level but useful for delivery/invoicing
   address: z.string().optional(),
-});
-
-// OrderItem Schema — validates individual line items within an order
-export const orderItemSchema = z.object({
-  // Description identifies what is being sold
-  description: z.string().min(1, 'Item description is required'),
-  // Quantity must be at least 1 to be a valid line item
-  quantity: z.number().min(1, 'Quantity must be at least 1'),
-  // Unit price cannot be negative
-  unitPrice: z.number().min(0, 'Unit price cannot be negative'),
-  // Total cannot be negative (quantity × unitPrice)
-  total: z.number().min(0, 'Total cannot be negative'),
-});
-
-// Order Schema — validates the full order document before saving
-export const orderSchema = z.object({
-  // Links the order to an existing customer document
-  customerId: z.string().min(1, 'Customer ID is required'),
-  // Status is restricted to a strict enum to prevent invalid states
-  status: z.enum(['Draft', 'Quoted', 'Paid', 'Cancelled']),
-  // An order must contain at least one line item
-  items: z.array(orderItemSchema).min(1, 'Order must have at least one item'),
-  // Financial totals cannot be negative
-  subtotal: z.number().min(0, 'Subtotal cannot be negative'),
-  discount: z.number().min(0, 'Discount cannot be negative'),
-  grandTotal: z.number().min(0, 'Grand total cannot be negative'),
-});
-
-// Expense Schema — validates business expenses before recording
-export const expenseSchema = z.object({
-  // Description explains what the expense was for
-  description: z.string().min(1, 'Expense description is required'),
-  // Amount must be a positive number (no zero-value expenses)
-  amount: z.number().positive('Expense amount must be positive'),
-  // Category groups expenses for reporting (e.g., "Supplies", "Transport")
-  category: z.string().min(1, 'Expense category is required'),
+  // Business Registration Number (SSM) — optional, not every customer has one on file
+  businessRegNumber: z.string().optional(),
 });
 
 // Employee Schema — validates HR staff data before creating accounts
@@ -64,6 +30,10 @@ export const employeeSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   // Role restricts access level within the dashboard
   role: z.enum(['Executive', 'HR', 'Staff']),
+  // Phone and department are optional — must still be declared here or
+  // zodResolver silently strips them from the submitted form data.
+  phone: z.string().optional(),
+  departmentId: z.string().optional(),
 });
 
 // ── DEPARTMENT ───────────────────────────────────────────────────────────────

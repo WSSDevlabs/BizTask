@@ -1,39 +1,39 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
+import { PageHeaderProvider } from '@/lib/page-header-context'
 import AuthGuard from '@/components/AuthGuard'
 import Sidebar from '@/components/Sidebar'
+import TopBar from '@/components/TopBar'
 import PageTransition from '@/components/PageTransition'
 import { motion } from 'framer-motion'
 
 const LoginPage         = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage     = lazy(() => import('@/pages/DashboardPage'))
+const BusinessAnalyticsPage = lazy(() => import('@/pages/BusinessAnalyticsPage'))
 // Operations
 const ProjectsPage      = lazy(() => import('@/pages/projects/ProjectsPage'))
 const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'))
 const TasksPage         = lazy(() => import('@/pages/tasks/TasksPage'))
+const ProjectManagementPage = lazy(() => import('@/pages/projects/ProjectManagementPage'))
+const MaintenancePage    = lazy(() => import('@/pages/projects/MaintenancePage'))
 // CRM & Sales
 const LeadsPage         = lazy(() => import('@/pages/crm/LeadsPage'))
-const DealsPage         = lazy(() => import('@/pages/crm/DealsPage'))
 const CampaignsPage     = lazy(() => import('@/pages/crm/CampaignsPage'))
 const CustomersPage     = lazy(() => import('@/pages/crm/CustomersPage'))
-const OrdersPage        = lazy(() => import('@/pages/crm/OrdersPage'))
+const ProductsPage      = lazy(() => import('@/pages/crm/ProductsPage'))
 // Finance
-const InvoicesPage      = lazy(() => import('@/pages/finance/InvoicesPage'))
-const QuotationsPage    = lazy(() => import('@/pages/finance/QuotationsPage'))
+const TransactionPage   = lazy(() => import('@/pages/finance/TransactionPage'))
 const ExpensesPage      = lazy(() => import('@/pages/finance/ExpensesPage'))
 const ReportsPage       = lazy(() => import('@/pages/finance/ReportsPage'))
 const SuppliersPage     = lazy(() => import('@/pages/finance/SuppliersPage'))
-const BillsPage         = lazy(() => import('@/pages/finance/BillsPage'))
 // Human Resources
 const EmployeesPage     = lazy(() => import('@/pages/hr/EmployeesPage'))
 const LeavePage         = lazy(() => import('@/pages/hr/LeavePage'))
-const AttendancePage    = lazy(() => import('@/pages/hr/AttendancePage'))
 // System
-const AssetsPage        = lazy(() => import('@/pages/multimedia/AssetsPage'))
 const DepartmentsPage   = lazy(() => import('@/pages/departments/DepartmentsPage'))
-const AuditLogPage      = lazy(() => import('@/pages/system/AuditLogPage'))
 const NotificationsPage = lazy(() => import('@/pages/system/NotificationsPage'))
+const SettingsPage      = lazy(() => import('@/pages/system/SettingsPage'))
 
 function PageLoader() {
   return (
@@ -50,16 +50,21 @@ function PageLoader() {
 function DashboardLayout() {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-neutral-50">
-        <Sidebar />
-        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-auto">
-          <PageTransition>
-            <Suspense fallback={<PageLoader />}>
-              <Outlet />
-            </Suspense>
-          </PageTransition>
-        </main>
-      </div>
+      <PageHeaderProvider>
+        <div className="flex min-h-screen bg-neutral-50">
+          <Sidebar />
+          <div className="flex-1 min-w-0 flex flex-col">
+            <TopBar />
+            <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-auto">
+              <PageTransition>
+                <Suspense fallback={<PageLoader />}>
+                  <Outlet />
+                </Suspense>
+              </PageTransition>
+            </main>
+          </div>
+        </div>
+      </PageHeaderProvider>
     </AuthGuard>
   )
 }
@@ -73,34 +78,39 @@ export default function App() {
             <Route path="/" element={<LoginPage />} />
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/analytics" element={<BusinessAnalyticsPage />} />
 
               <Route path="/projects"    element={<ProjectsPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/tasks"       element={<TasksPage />} />
+              <Route path="/project-management" element={<ProjectManagementPage />} />
+              <Route path="/maintenance" element={<MaintenancePage />} />
 
               <Route path="/crm/leads"     element={<LeadsPage />} />
-              <Route path="/crm/deals"     element={<DealsPage />} />
+              <Route path="/crm/deals"     element={<Navigate to="/crm/leads" replace />} />
               <Route path="/crm/campaigns" element={<CampaignsPage />} />
               <Route path="/customers"     element={<CustomersPage />} />
-              <Route path="/orders"        element={<OrdersPage />} />
+              <Route path="/crm/products"  element={<ProductsPage />} />
 
-              <Route path="/finance/invoices"   element={<InvoicesPage />} />
-              <Route path="/finance/quotations" element={<QuotationsPage />} />
+              <Route path="/finance/transactions" element={<TransactionPage />} />
+              <Route path="/finance/invoices"   element={<Navigate to="/finance/transactions" replace />} />
+              <Route path="/finance/quotations" element={<Navigate to="/finance/transactions" replace />} />
               <Route path="/finance/expenses"   element={<ExpensesPage />} />
               <Route path="/finance/suppliers"  element={<SuppliersPage />} />
-              <Route path="/finance/bills"      element={<BillsPage />} />
+              <Route path="/finance/bills"      element={<Navigate to="/finance/expenses" replace />} />
+              <Route path="/finance/subscriptions" element={<Navigate to="/finance/expenses" replace />} />
               <Route path="/finance/reports"    element={<ReportsPage />} />
               <Route path="/expenses" element={<Navigate to="/finance/expenses" replace />} />
 
               <Route path="/hr/employees"  element={<EmployeesPage />} />
               <Route path="/hr/leave"      element={<LeavePage />} />
-              <Route path="/hr/attendance" element={<AttendancePage />} />
+              <Route path="/hr/attendance" element={<Navigate to="/hr/leave" replace />} />
               <Route path="/hr" element={<Navigate to="/hr/employees" replace />} />
 
-              <Route path="/assets"        element={<AssetsPage />} />
               <Route path="/departments"   element={<DepartmentsPage />} />
-              <Route path="/audit-log"     element={<AuditLogPage />} />
+              <Route path="/assets" element={<Navigate to="/departments" replace />} />
               <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/settings"      element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

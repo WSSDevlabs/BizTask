@@ -8,6 +8,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Derives display initials from an email, e.g. "jane.doe@x.com" -> "JD"
+export function getInitials(email: string): string {
+  const parts = email.split("@")[0].split(/[._-]/);
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
 // Formats a number as Malaysian Ringgit (e.g., RM 5,000.00)
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("ms-MY", {

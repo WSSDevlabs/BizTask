@@ -12,6 +12,7 @@ export interface Customer {
   phone: string;
   email: string;
   address: string;
+  businessRegNumber?: string;
   createdAt: FireDate;
 }
 
@@ -80,6 +81,7 @@ export interface Employee {
   joinDate?: FireDate;
   status?: 'Active' | 'Inactive';
   documents?: EmployeeDocument[];
+  photoUrl?: string;
   createdAt: FireDate;
 }
 
@@ -95,7 +97,27 @@ export interface Department {
 
 // ── PROJECTS ─────────────────────────────────────────────────────────────────
 
-export type ProjectStatus = 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Cancelled';
+export type ProjectStatus = 'Planning' | 'Active' | 'At Risk' | 'On Hold' | 'Completed' | 'Cancelled';
+export type ProjectMemberRole = 'Owner' | 'Editor' | 'Viewer';
+
+export interface ProjectMember {
+  employeeId: string;
+  role: ProjectMemberRole;
+}
+
+export interface ProjectLink {
+  label: string;
+  url: string;
+}
+
+export type MilestoneStatus = 'Planned' | 'In Progress' | 'Completed';
+
+export interface ProjectMilestone {
+  id: string;
+  title: string;
+  date?: FireDate;
+  status: MilestoneStatus;
+}
 
 export interface Project {
   id: string;
@@ -106,6 +128,10 @@ export interface Project {
   startDate?: FireDate;
   dueDate?: FireDate;
   budget?: number;
+  team?: ProjectMember[];
+  links?: ProjectLink[];
+  milestones?: ProjectMilestone[];
+  notes?: string; // shared notepad, editable by anyone with project access
   createdAt: FireDate;
 }
 
@@ -124,6 +150,8 @@ export interface Task {
   projectId?: string;
   assigneeId?: string;
   dueDate?: FireDate;
+  dependsOn?: string[]; // task IDs this task is blocked by
+  parentTaskId?: string; // set when this task is a subtask of a major task
   createdAt: FireDate;
   updatedAt?: FireDate;
 }
@@ -134,6 +162,21 @@ export interface Comment {
   authorId: string;
   authorName: string;
   body: string;
+  createdAt: FireDate;
+}
+
+// ── PROJECT ACTIVITY ─────────────────────────────────────────────────────────
+// Feeds the Project Progress chart. 'task_deleted' is logged (so the 12h grace
+// window can be checked) but is never counted as a plotted activity itself.
+
+export type ProjectActivityType =
+  | 'task_created' | 'subtask_created' | 'task_done' | 'subtask_done' | 'task_deleted';
+
+export interface ProjectActivity {
+  id: string;
+  projectId: string;
+  taskId: string;
+  type: ProjectActivityType;
   createdAt: FireDate;
 }
 
@@ -294,15 +337,32 @@ export interface Campaign {
   createdAt: FireDate;
 }
 
+// ── PRODUCTS ──────────────────────────────────────────────────────────────────
+
+export type ProductType = 'Product' | 'Service';
+
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  sku?: string;
+  category?: string;
+  type: ProductType;
+  createdAt: FireDate;
+}
+
 // ── FINANCE: INVOICES / QUOTATIONS / PAYMENTS ────────────────────────────────
 
 export interface InvoiceLine {
   id: string;
+  productId?: string; // set when this line came from the product catalog
   description: string;
   quantity: number;
   unitPrice: number;
+  discount?: number; // per-line discount amount (RM), deducted before tax
   taxRate: number; // 0 | 6 | 8 (SST %)
-  total: number; // qty * unitPrice (pre-tax)
+  total: number; // qty * unitPrice - discount (pre-tax)
 }
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
@@ -387,6 +447,43 @@ export interface Bill {
   createdAt: FireDate;
 }
 
+// ── SUBSCRIPTIONS ────────────────────────────────────────────────────────────
+export type BillingCycle = 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly';
+export type SubscriptionStatus = 'Active' | 'Cancelled';
+
+export interface Subscription {
+  id: string;
+  name: string;
+  vendor?: string;
+  amount: number;
+  billingCycle: BillingCycle;
+  category?: string;
+  status: SubscriptionStatus;
+  nextRenewal?: FireDate;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+  createdAt: FireDate;
+}
+
+// ── MAINTENANCE ──────────────────────────────────────────────────────────────
+// Recurring renewals/upkeep owned by a project team — e.g. client domain or
+// hosting renewals. Distinct from Subscriptions, which are company overhead.
+
+export type MaintenanceStatus = 'Active' | 'Completed' | 'Cancelled';
+
+export interface MaintenanceItem {
+  id: string;
+  name: string;
+  description?: string;
+  projectId?: string;
+  assigneeId?: string;
+  price: number;
+  interval: BillingCycle;
+  dueDate: FireDate;
+  status: MaintenanceStatus;
+  createdAt: FireDate;
+}
+
 // ── MONTHLY TARGET ─────────────────────────────────────────────────────────────
 export interface MonthlyTarget {
   id: string;
@@ -395,6 +492,14 @@ export interface MonthlyTarget {
   revenueTarget: number;
   expensesBudget: number;
   createdAt: FireDate;
+}
+
+// ── COMPANY SETTINGS ──────────────────────────────────────────────────────────
+// Singleton document at settings/company. Executive-only to write.
+
+export interface CompanySettings {
+  logoUrl?: string;
+  updatedAt?: FireDate;
 }
 
 // ── ASSETS (multimedia) ──────────────────────────────────────────────────────
@@ -410,6 +515,15 @@ export interface Asset {
   tags: string[];
   campaignId?: string;
   projectId?: string;
+  createdAt: FireDate;
+}
+
+// ── EXTERNAL TOOLS (Project Management) ──────────────────────────────────────
+
+export interface ExternalTool {
+  id: string;
+  name: string;
+  url: string;
   createdAt: FireDate;
 }
 

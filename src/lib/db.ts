@@ -2,6 +2,7 @@ import { db, auth } from '@/lib/firebase';
 import {
   collection,
   addDoc,
+  setDoc,
   getDocs,
   getDoc,
   query,
@@ -18,7 +19,6 @@ import {
 } from 'firebase/firestore';
 import type {
   Customer,
-  Order,
   Expense,
   DashboardStats,
   Employee,
@@ -27,7 +27,6 @@ import type {
   ProjectStatus,
   Task,
   Comment,
-  AuditLog,
   AuditAction,
   LeaveRequest,
   LeaveBalance,
@@ -40,10 +39,16 @@ import type {
   Quotation,
   Payment,
   Asset,
+  ExternalTool,
   Notification,
   Supplier,
   Bill,
+  Subscription,
+  Product,
   MonthlyTarget,
+  CompanySettings,
+  MaintenanceItem,
+  ProjectActivity,
 } from '@/types';
 
 // ── GENERIC HELPERS ──────────────────────────────────────────────────────────
@@ -65,9 +70,16 @@ function subscribe<T>(
   cb: (rows: T[]) => void,
   ...constraints: QueryConstraint[]
 ): Unsubscribe {
-  return onSnapshot(query(collection(db, name), ...constraints), (snap) => {
-    cb(mapDocs<T>(snap.docs));
-  });
+  return onSnapshot(
+    query(collection(db, name), ...constraints),
+    (snap) => cb(mapDocs<T>(snap.docs)),
+    (err) => {
+      // Without this handler a permission-denied (or any) error leaves callers
+      // stuck on their loading state forever — resolve with empty rows instead.
+      console.error(`[subscribe:${name}]`, err);
+      cb([]);
+    }
+  );
 }
 
 // ── AUDIT LOG ────────────────────────────────────────────────────────────────
@@ -100,10 +112,6 @@ export async function addAuditLog(
   }
 }
 
-export function getAuditLogs(cb: (rows: AuditLog[]) => void): Unsubscribe {
-  return subscribe<AuditLog>('auditLogs', cb, orderBy('createdAt', 'desc'));
-}
-
 // ── CUSTOMERS ────────────────────────────────────────────────────────────────
 
 export async function addCustomer(data: Omit<Customer, 'id' | 'createdAt'>): Promise<string> {
@@ -128,30 +136,6 @@ export async function updateCustomer(id: string, data: Partial<Omit<Customer, 'i
 export async function deleteCustomer(id: string): Promise<void> {
   await deleteDoc(doc(db, 'customers', id));
   await addAuditLog('delete', 'Customers', `Deleted customer ${id}`, { entityId: id });
-}
-
-// ── ORDERS ───────────────────────────────────────────────────────────────────
-
-export async function createOrder(data: Omit<Order, 'id' | 'dateIssued'>): Promise<string> {
-  const ref = await addDoc(collection(db, 'orders'), { ...data, dateIssued: Timestamp.now() });
-  await addAuditLog('create', 'Orders', `Created order`, { entityId: ref.id });
-  return ref.id;
-}
-
-export async function getOrders(): Promise<Order[]> {
-  return listAll<Order>('orders', orderBy('dateIssued', 'desc'));
-}
-
-export async function updateOrder(orderId: string, data: Partial<Omit<Order, 'id' | 'dateIssued'>>): Promise<void> {
-  const payload: Record<string, unknown> = { ...data };
-  if (data.status === 'Paid') payload.datePaid = Timestamp.now();
-  await updateDoc(doc(db, 'orders', orderId), payload);
-  await addAuditLog('update', 'Orders', `Updated order ${orderId}`, { entityId: orderId, after: data });
-}
-
-export async function deleteOrder(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'orders', id));
-  await addAuditLog('delete', 'Orders', `Deleted order ${id}`, { entityId: id });
 }
 
 // ── EXPENSES ─────────────────────────────────────────────────────────────────
@@ -189,10 +173,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 // ── EMPLOYEES ────────────────────────────────────────────────────────────────
 
-export async function addEmployee(data: Omit<Employee, 'id' | 'createdAt'>): Promise<string> {
-  const ref = await addDoc(collection(db, 'employees'), { ...data, createdAt: Timestamp.now() });
-  await addAuditLog('create', 'Employees', `Created employee ${data.fullName}`, { entityId: ref.id });
-  return ref.id;
+// The document ID MUST be the employee's Firebase Auth UID — firestore.rules
+// looks up role via a direct get() on employees/{request.auth.uid}, not a
+// query. A mismatched ID means the rules can never resolve that user's role.
+export async function addEmployee(uid: string, data: Omit<Employee, 'id' | 'createdAt'>): Promise<string> {
+  await setDoc(doc(db, 'employees', uid), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Employees', `Created employee ${data.fullName}`, { entityId: uid });
+  return uid;
 }
 
 export async function getEmployees(): Promise<Employee[]> {
@@ -267,6 +254,12 @@ export async function getProject(id: string): Promise<Project | null> {
 export async function updateProject(id: string, data: Partial<Omit<Project, 'id' | 'createdAt'>>): Promise<void> {
   await updateDoc(doc(db, 'projects', id), data);
   await addAuditLog('update', 'Projects', `Updated project ${id}`, { entityId: id, after: data });
+}
+
+// Live subscription to just the shared notepad — used instead of a one-time
+// getProject() fetch so edits from other project members show up without a refresh.
+export function subscribeProjectNotes(id: string, cb: (notes: string) => void): Unsubscribe {
+  return onSnapshot(doc(db, 'projects', id), (snap) => cb((snap.data()?.notes as string) ?? ''));
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -589,6 +582,23 @@ export async function deleteAsset(id: string): Promise<void> {
   await addAuditLog('delete', 'Assets', `Deleted asset ${id}`, { entityId: id });
 }
 
+// ── EXTERNAL TOOLS (Project Management) ─────────────────────────────────────
+
+export async function addExternalTool(data: Omit<ExternalTool, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'externalTools'), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Project Management', `Added link ${data.name}`, { entityId: ref.id });
+  return ref.id;
+}
+
+export function subscribeExternalTools(cb: (rows: ExternalTool[]) => void): Unsubscribe {
+  return subscribe<ExternalTool>('externalTools', cb, orderBy('createdAt', 'desc'));
+}
+
+export async function deleteExternalTool(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'externalTools', id));
+  await addAuditLog('delete', 'Project Management', `Deleted link ${id}`, { entityId: id });
+}
+
 // ── NOTIFICATIONS ────────────────────────────────────────────────────────────
 
 export async function addNotification(data: Omit<Notification, 'id' | 'createdAt'>): Promise<string> {
@@ -606,6 +616,28 @@ export async function markNotificationRead(id: string, read = true): Promise<voi
 
 export async function deleteNotification(id: string): Promise<void> {
   await deleteDoc(doc(db, 'notifications', id));
+}
+
+// ── PRODUCTS ─────────────────────────────────────────────────────────────────
+
+export async function addProduct(data: Omit<Product, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'products'), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Products', `Added product ${data.name}`, { entityId: ref.id });
+  return ref.id;
+}
+
+export function subscribeProducts(cb: (rows: Product[]) => void): Unsubscribe {
+  return subscribe<Product>('products', cb, orderBy('name', 'asc'));
+}
+
+export async function updateProduct(id: string, data: Partial<Omit<Product, 'id' | 'createdAt'>>): Promise<void> {
+  await updateDoc(doc(db, 'products', id), data);
+  await addAuditLog('update', 'Products', `Updated product ${id}`, { entityId: id, after: data });
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'products', id));
+  await addAuditLog('delete', 'Products', `Deleted product ${id}`, { entityId: id });
 }
 
 // ── SUPPLIERS ─────────────────────────────────────────────────────────────────
@@ -652,6 +684,28 @@ export async function deleteBill(id: string): Promise<void> {
   await addAuditLog('delete', 'Bills', `Deleted bill ${id}`, { entityId: id });
 }
 
+// ── SUBSCRIPTIONS ────────────────────────────────────────────────────────────
+
+export async function addSubscription(data: Omit<Subscription, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'subscriptions'), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Subscriptions', `Added subscription ${data.name}`, { entityId: ref.id, after: data });
+  return ref.id;
+}
+
+export function subscribeSubscriptions(cb: (rows: Subscription[]) => void): Unsubscribe {
+  return subscribe<Subscription>('subscriptions', cb, orderBy('createdAt', 'desc'));
+}
+
+export async function updateSubscription(id: string, data: Partial<Omit<Subscription, 'id' | 'createdAt'>>): Promise<void> {
+  await updateDoc(doc(db, 'subscriptions', id), data);
+  await addAuditLog('update', 'Subscriptions', `Updated subscription ${id}`, { entityId: id, after: data });
+}
+
+export async function deleteSubscription(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'subscriptions', id));
+  await addAuditLog('delete', 'Subscriptions', `Deleted subscription ${id}`, { entityId: id });
+}
+
 // ── MONTHLY TARGETS ───────────────────────────────────────────────────────────
 
 export function subscribeMonthlyTargets(cb: (rows: MonthlyTarget[]) => void): Unsubscribe {
@@ -668,4 +722,49 @@ export async function setMonthlyTarget(data: Omit<MonthlyTarget, 'id' | 'created
   }
   const ref = await addDoc(collection(db, 'monthlyTargets'), { ...data, createdAt: Timestamp.now() });
   return ref.id;
+}
+
+// ── COMPANY SETTINGS ──────────────────────────────────────────────────────────
+// Singleton document; Executive-only writes (enforced by firestore.rules).
+
+const COMPANY_SETTINGS_REF = () => doc(db, 'settings', 'company');
+
+export function subscribeCompanySettings(cb: (data: CompanySettings) => void): Unsubscribe {
+  return onSnapshot(COMPANY_SETTINGS_REF(), (snap) => cb(snap.exists() ? (snap.data() as CompanySettings) : {}));
+}
+
+export async function updateCompanySettings(data: Partial<CompanySettings>): Promise<void> {
+  await setDoc(COMPANY_SETTINGS_REF(), { ...data, updatedAt: Timestamp.now() }, { merge: true });
+}
+
+// ── MAINTENANCE ──────────────────────────────────────────────────────────────
+
+export async function addMaintenanceItem(data: Omit<MaintenanceItem, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'maintenance'), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Maintenance', `Added maintenance item ${data.name}`, { entityId: ref.id });
+  return ref.id;
+}
+
+export function subscribeMaintenanceItems(cb: (rows: MaintenanceItem[]) => void): Unsubscribe {
+  return subscribe<MaintenanceItem>('maintenance', cb, orderBy('dueDate', 'asc'));
+}
+
+export async function updateMaintenanceItem(id: string, data: Partial<Omit<MaintenanceItem, 'id' | 'createdAt'>>): Promise<void> {
+  await updateDoc(doc(db, 'maintenance', id), data);
+  await addAuditLog('update', 'Maintenance', `Updated maintenance item ${id}`, { entityId: id, after: data });
+}
+
+export async function deleteMaintenanceItem(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'maintenance', id));
+  await addAuditLog('delete', 'Maintenance', `Deleted maintenance item ${id}`, { entityId: id });
+}
+
+// ── PROJECT ACTIVITY ─────────────────────────────────────────────────────────
+
+export async function logProjectActivity(projectId: string, taskId: string, type: ProjectActivity['type']): Promise<void> {
+  await addDoc(collection(db, 'projectActivity'), { projectId, taskId, type, createdAt: Timestamp.now() });
+}
+
+export function subscribeProjectActivity(projectId: string, cb: (rows: ProjectActivity[]) => void): Unsubscribe {
+  return subscribe<ProjectActivity>('projectActivity', cb, where('projectId', '==', projectId));
 }

@@ -12,12 +12,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
     if (!user) { navigate("/", { replace: true }); return; }
 
-    const hrPaths = ["/hr/employees", "/hr/leave", "/hr/attendance", "/hr", "/departments", "/audit-log", "/notifications"];
+    const hrPaths = ["/hr/employees", "/hr/leave", "/hr/attendance", "/hr", "/departments", "/notifications", "/settings"];
     if (role === "HR" && !hrPaths.some((p) => pathname.startsWith(p))) {
       navigate("/hr/employees", { replace: true });
       return;
     }
-    if (role === "Staff" && pathname.startsWith("/hr")) {
+    // Employee directory/management is HR & Executive only. Leave & Attendance
+    // (/hr/leave) is intentionally open to Staff — they submit their own leave
+    // requests and clock in/out there.
+    if (role === "Staff" && pathname.startsWith("/hr/employees")) {
       navigate("/dashboard", { replace: true });
     }
   }, [isLoading, user, role, pathname, navigate]);

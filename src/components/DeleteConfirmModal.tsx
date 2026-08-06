@@ -48,7 +48,12 @@ export function DeleteConfirmModal({
       setTyped("");
     } catch (err) {
       console.error("Deletion failed:", err);
-      setError("An error occurred. Please try again.");
+      const code = (err as { code?: string })?.code;
+      setError(
+        code === "permission-denied"
+          ? "You don't have permission to delete this. Only an Executive can."
+          : `Delete failed: ${(err as Error)?.message ?? "please try again."}`
+      );
     } finally {
       setIsDeleting(false);
     }

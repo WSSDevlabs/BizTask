@@ -3,9 +3,10 @@ import { Truck, Plus, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import {
-  PageHeader, PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
+  PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
   SearchInput, StatCard,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import {
   subscribeSuppliers, addSupplier, updateSupplier, deleteSupplier,
 } from "@/lib/db";
@@ -71,23 +72,20 @@ export default function SuppliersPage() {
     } catch (err) { setError("Failed to save. " + (err as Error).message); }
   }
 
+  usePageHeader({ actions: <PrimaryButton onClick={openCreate}><Plus size={16} /> New Supplier</PrimaryButton> });
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="max-w-6xl mx-auto">
-      <PageHeader
-        icon={Truck}
-        title="Suppliers"
-        subtitle="Vendor directory"
-        actions={<PrimaryButton onClick={openCreate}><Plus size={16} /> New Supplier</PrimaryButton>}
-      />
+      <div className="sticky top-0 z-10 bg-neutral-50 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <StatCard label="Total Suppliers" value={suppliers.length} icon={Truck} tone="blue" />
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <StatCard label="Total Suppliers" value={suppliers.length} icon={Truck} accent />
-      </div>
-
-      <div className="flex flex-wrap gap-3 mb-5">
-        <SearchInput value={search} onChange={setSearch} placeholder="Search suppliers..." />
+        <div className="flex flex-wrap gap-3 mb-5">
+          <SearchInput value={search} onChange={setSearch} placeholder="Search suppliers..." />
+        </div>
       </div>
 
       <Card className="overflow-hidden">

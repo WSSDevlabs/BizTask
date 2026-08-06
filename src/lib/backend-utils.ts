@@ -1,11 +1,10 @@
-import { auth, secondaryAuth, storage, db } from '@/lib/firebase';
+import { auth, secondaryAuth, db } from '@/lib/firebase';
 import { env } from '@/lib/env';
 import {
   signInWithEmailAndPassword,
   signOut,
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 function isEmail(str: string): boolean {
@@ -42,15 +41,15 @@ export async function createSystemUserAuth(email: string, password: string): Pro
   return uid;
 }
 
-export async function uploadExpenseReceipt(file: File, expenseId: string): Promise<string> {
-  const storageRef = ref(storage, `receipts/${expenseId}`);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
-}
-
-// Generic uploader — used for assets, employee documents, etc.
-export async function uploadFile(file: File, path: string): Promise<string> {
-  const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+// Firebase Storage requires the paid Blaze plan, so files are kept on the free
+// Spark plan by inlining them as base64 data URLs directly in Firestore.
+// Firestore caps a document at 1 MiB, so callers must enforce a byte limit
+// before calling this (base64 inflates size by ~33%).
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }

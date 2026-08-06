@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ListChecks, Plus, LayoutGrid, List as ListIcon, ChevronLeft, ChevronRight,
   Trash2, MessageSquare, AlertTriangle, Send,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  PageHeader, PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
+  PrimaryButton, Card, LoadingState, EmptyState, Field, inputClass,
   StatusBadge, toneForPriority, toneForStatus,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import {
   subscribeTasks, addTask, updateTask, deleteTask, subscribeDepartments,
   subscribeProjects, subscribeEmployees, subscribeComments, addComment,
@@ -27,6 +29,7 @@ function isOverdue(t: Task): boolean {
 
 export default function TasksPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -36,6 +39,7 @@ export default function TasksPage() {
 
   const [filterDept, setFilterDept] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
+  const [openOnly, setOpenOnly] = useState(searchParams.get("status") === "open");
 
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<Task | null>(null);
@@ -71,10 +75,13 @@ export default function TasksPage() {
       tasks.filter(
         (t) =>
           (!filterDept || t.departmentId === filterDept) &&
-          (!filterPriority || t.priority === filterPriority)
+          (!filterPriority || t.priority === filterPriority) &&
+          (!openOnly || t.status !== "Done")
       ),
-    [tasks, filterDept, filterPriority]
+    [tasks, filterDept, filterPriority, openOnly]
   );
+
+  const displayColumns = openOnly ? COLUMNS.filter((c) => c !== "Done") : COLUMNS;
 
   function openCreate(presetStatus?: TaskStatus) {
     setEditing(null);
@@ -82,6 +89,14 @@ export default function TasksPage() {
     setPriority("Medium"); setDepartmentId(""); setProjectId(""); setAssigneeId(""); setDueDate("");
     setError(""); setFormOpen(true);
   }
+
+  useEffect(() => {
+    if (searchParams.get("action") === "new") {
+      openCreate();
+      setSearchParams((p) => { p.delete("action"); return p; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function openEdit(t: Task) {
     setEditing(t);
@@ -95,10 +110,10 @@ export default function TasksPage() {
     if (!title.trim()) { setError("Title is required"); return; }
     const payload = {
       title, description, status, priority,
-      departmentId: departmentId || undefined,
-      projectId: projectId || undefined,
-      assigneeId: assigneeId || undefined,
-      dueDate: dateStringToTimestamp(dueDate),
+      ...(departmentId ? { departmentId } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(assigneeId ? { assigneeId } : {}),
+      ...(dueDate ? { dueDate: dateStringToTimestamp(dueDate) } : {}),
     };
     try {
       if (editing) await updateTask(editing.id, payload);
@@ -115,39 +130,46 @@ export default function TasksPage() {
     if (next) await updateTask(t.id, { status: next });
   }
 
+  usePageHeader({
+    actions: (
+      <div className="flex items-center gap-2">
+        <div className="flex rounded-lg border border-neutral-200 overflow-hidden">
+          <button onClick={() => setView("board")} className={cn("p-2", view === "board" ? "bg-black text-white" : "bg-white text-neutral-500")}><LayoutGrid size={16} /></button>
+          <button onClick={() => setView("list")} className={cn("p-2", view === "list" ? "bg-black text-white" : "bg-white text-neutral-500")}><ListIcon size={16} /></button>
+        </div>
+        <PrimaryButton onClick={() => openCreate()}><Plus size={16} /> New Task</PrimaryButton>
+      </div>
+    ),
+  });
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <PageHeader
-        icon={ListChecks}
-        title="Tasks"
-        subtitle="Everything you owe yourself, organised"
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-neutral-200 overflow-hidden">
-              <button onClick={() => setView("board")} className={cn("p-2", view === "board" ? "bg-black text-white" : "bg-white text-neutral-500")}><LayoutGrid size={16} /></button>
-              <button onClick={() => setView("list")} className={cn("p-2", view === "list" ? "bg-black text-white" : "bg-white text-neutral-500")}><ListIcon size={16} /></button>
-            </div>
-            <PrimaryButton onClick={() => openCreate()}><Plus size={16} /> New Task</PrimaryButton>
-          </div>
-        }
-      />
-
-      <div className="flex flex-wrap gap-3 mb-5">
-        <select className={cn(inputClass, "max-w-[200px]")} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
-          <option value="">All Departments</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select className={cn(inputClass, "max-w-[180px]")} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-          <option value="">All Priorities</option>
-          {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+      <div className="sticky top-0 z-10 bg-neutral-50 pb-4">
+        <div className="flex flex-wrap gap-3 mb-5">
+          <select className={cn(inputClass, "max-w-[200px]")} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+            <option value="">All Departments</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select className={cn(inputClass, "max-w-[180px]")} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+            <option value="">All Priorities</option>
+            {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          {openOnly && (
+            <button
+              onClick={() => { setOpenOnly(false); setSearchParams((p) => { p.delete("status"); return p; }, { replace: true }); }}
+              className="text-xs font-medium text-sky-700 hover:underline px-1"
+            >
+              Showing open tasks only · Show all
+            </button>
+          )}
+        </div>
       </div>
 
       {view === "board" ? (
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
-          {COLUMNS.map((col) => {
+          {displayColumns.map((col) => {
             const colTasks = filtered.filter((t) => t.status === col);
             return (
               <div key={col} className="bg-neutral-100 rounded-xl p-3 min-h-[200px]">
@@ -170,19 +192,16 @@ export default function TasksPage() {
                         <StatusBadge label={t.priority} tone={toneForPriority(t.priority)} dot={false} />
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-2.5 text-xs text-neutral-500">
-                        {t.departmentId && (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColor(t.departmentId) }} />
-                            {deptName(t.departmentId)}
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <span className={cn("w-2 h-2 rounded-full", t.assigneeId ? "bg-sky-500" : "bg-neutral-300")} />
+                          {t.assigneeId ? empName(t.assigneeId) : "Unassigned"}
+                        </span>
                         {t.dueDate && (
                           <span className={cn(isOverdue(t) && "text-red-600 font-medium")}>
                             {isOverdue(t) && <AlertTriangle size={11} className="inline mr-0.5" />}
                             {formatDate(toJsDate(t.dueDate)!)}
                           </span>
                         )}
-                        {t.assigneeId && <span>· {empName(t.assigneeId)}</span>}
                       </div>
                       <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-neutral-100" onClick={(e) => e.stopPropagation()}>
                         <button disabled={COLUMNS.indexOf(t.status) === 0} onClick={() => moveTask(t, -1)} className="p-1 rounded hover:bg-neutral-100 disabled:opacity-30"><ChevronLeft size={14} /></button>

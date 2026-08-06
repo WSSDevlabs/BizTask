@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, TrendingUp, TrendingDown, DollarSign, Target as TargetIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  PageHeader, PrimaryButton, Card, LoadingState, StatCard, EmptyState, Field, inputClass,
+  PrimaryButton, Card, LoadingState, StatCard, EmptyState, Field, inputClass,
 } from "@/components/ui/shared";
+import { usePageHeader } from "@/lib/page-header-context";
 import {
   subscribeInvoices, subscribeExpenses, subscribeCustomers,
   subscribeMonthlyTargets, setMonthlyTarget,
 } from "@/lib/db";
-import { formatCurrency, toJsDate } from "@/lib/utils";
+import { cn, formatCurrency, toJsDate } from "@/lib/utils";
 import type { Invoice, Expense, Customer, MonthlyTarget } from "@/types";
 
 const DONUT_COLORS = ["#b91c1c", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -122,6 +123,8 @@ export default function ReportsPage() {
       .slice(0, 5);
   }, [paidInvoices, customers]);
 
+  usePageHeader({ actions: <PrimaryButton onClick={openTargetModal}><TargetIcon size={16} /> Set Monthly Target</PrimaryButton> });
+
   if (loading) return <LoadingState />;
 
   // build donut segments
@@ -143,12 +146,6 @@ export default function ReportsPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <PageHeader
-        icon={BarChart3}
-        title="Financial Reports"
-        subtitle="Revenue, expenses and receivables"
-        actions={<PrimaryButton onClick={openTargetModal}><TargetIcon size={16} /> Set Monthly Target</PrimaryButton>}
-      />
 
       {/* Revenue vs Target */}
       <Card className="p-5 mb-6">
@@ -165,10 +162,10 @@ export default function ReportsPage() {
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Revenue" value={formatCurrency(totalRevenue)} icon={TrendingUp} accent />
-        <StatCard label="Expenses" value={formatCurrency(totalExpenses)} icon={TrendingDown} />
-        <StatCard label="Net Profit" value={formatCurrency(netProfit)} icon={DollarSign} hint={netProfit >= 0 ? "Profit" : "Loss"} />
-        <StatCard label="Outstanding" value={formatCurrency(outstanding)} icon={BarChart3} hint={`${receivables.length} invoices`} />
+        <StatCard label="Revenue" value={formatCurrency(totalRevenue)} icon={TrendingUp} tone="emerald" />
+        <StatCard label="Expenses" value={formatCurrency(totalExpenses)} icon={TrendingDown} tone="amber" />
+        <StatCard label="Net Profit" value={formatCurrency(netProfit)} icon={DollarSign} hint={netProfit >= 0 ? "Profit" : "Loss"} tone={netProfit >= 0 ? "emerald" : "red"} />
+        <StatCard label="Outstanding" value={formatCurrency(outstanding)} icon={BarChart3} hint={`${receivables.length} invoices`} tone="blue" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -233,7 +230,7 @@ export default function ReportsPage() {
               return (
                 <div key={bucket}>
                   <div className="flex justify-between text-sm mb-1"><span className="text-neutral-600">{bucket} days</span><span className="font-medium text-black">{formatCurrency(amount)}</span></div>
-                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden"><div className="h-full bg-red-800 rounded-full" style={{ width: `${(amount / max) * 100}%` }} /></div>
+                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden"><div className={cn("h-full rounded-full", bucket === "Current" ? "bg-emerald-500" : bucket === "0-30" ? "bg-sky-500" : bucket === "31-60" ? "bg-amber-500" : "bg-red-700")} style={{ width: `${(amount / max) * 100}%` }} /></div>
                 </div>
               );
             })}
