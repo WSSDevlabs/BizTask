@@ -4,6 +4,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
@@ -11,13 +14,13 @@ function isEmail(str: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
 }
 
-export async function loginAdmin(identifier: string, password: string): Promise<void> {
+export async function loginAdmin(identifier: string, password: string, remember = true): Promise<void> {
   let email = identifier;
 
   if (identifier === env.hrLoginShortcut) {
     email = env.hrMasterEmail;
   } else if (!isEmail(identifier)) {
-    // Worker ID lookup — allowed by public read rule on employees
+    // Worker ID lookup (e.g. "RZ01") — allowed by public list rule on employees, limit(1) only
     const snap = await getDocs(
       query(collection(db, 'employees'), where('workerId', '==', identifier), limit(1))
     );
@@ -25,6 +28,7 @@ export async function loginAdmin(identifier: string, password: string): Promise<
     email = snap.docs[0].data().email;
   }
 
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
   await signInWithEmailAndPassword(auth, email, password);
 }
 

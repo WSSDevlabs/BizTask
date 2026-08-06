@@ -42,10 +42,11 @@ service cloud.firestore {
     // Full read allowed for authenticated users (needed for role lookups).
 
     match /employees/{employeeId} {
-      allow read: if isAuthenticated();
-      // Public read is intentionally NOT granted — login page does the Worker ID
-      // lookup only AFTER the user has entered their credentials on the client.
-      // Firebase Auth handles the actual authentication.
+      allow get: if isAuthenticated();
+      // Unauthenticated list is allowed ONLY for limit(1) queries — this is what
+      // the pre-auth Worker ID → email lookup on the login page relies on (it runs
+      // before signInWithEmailAndPassword, so request.auth is still null here).
+      allow list: if isAuthenticated() || request.query.limit <= 1;
       allow create: if isHR();
       allow update: if isHR() || request.auth.uid == employeeId;
       allow delete: if isExecutive();
