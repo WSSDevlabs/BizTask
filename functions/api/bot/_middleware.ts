@@ -4,8 +4,10 @@ import type { PagesFunction } from '../../../server/types';
 import { errorResponse, json, safeEqual } from '../../../server/http';
 
 export const onRequest: PagesFunction = async ({ request, env, next }) => {
-  if (!env.BOT_API_KEY || !env.BOT_OWNER_UID || !env.FIREBASE_SERVICE_ACCOUNT) {
-    return json({ error: 'Bot API is not configured' }, 503);
+  const missing = (['BOT_API_KEY', 'BOT_OWNER_UID', 'FIREBASE_SERVICE_ACCOUNT'] as const).filter((k) => !env[k]);
+  if (missing.length > 0) {
+    // Names only — never values — so a misconfigured secret is easy to spot.
+    return json({ error: 'Bot API is not configured', missing }, 503);
   }
   const header = request.headers.get('Authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
