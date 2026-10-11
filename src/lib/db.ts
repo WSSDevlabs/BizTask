@@ -49,6 +49,7 @@ import type {
   CompanySettings,
   MaintenanceItem,
   ProjectActivity,
+  CalendarEvent,
 } from '@/types';
 
 // ── GENERIC HELPERS ──────────────────────────────────────────────────────────
@@ -767,4 +768,28 @@ export async function logProjectActivity(projectId: string, taskId: string, type
 
 export function subscribeProjectActivity(projectId: string, cb: (rows: ProjectActivity[]) => void): Unsubscribe {
   return subscribe<ProjectActivity>('projectActivity', cb, where('projectId', '==', projectId));
+}
+
+// ── CALENDAR ─────────────────────────────────────────────────────────────────
+// Events are private: the query must filter on ownerId so it matches the
+// security rule. Sorted client-side to avoid needing a composite index.
+
+export async function addCalendarEvent(data: Omit<CalendarEvent, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'calendarEvents'), { ...data, createdAt: Timestamp.now() });
+  await addAuditLog('create', 'Calendar', `Added calendar event ${data.title}`, { entityId: ref.id });
+  return ref.id;
+}
+
+export function subscribeCalendarEvents(ownerId: string, cb: (rows: CalendarEvent[]) => void): Unsubscribe {
+  return subscribe<CalendarEvent>('calendarEvents', cb, where('ownerId', '==', ownerId));
+}
+
+export async function updateCalendarEvent(id: string, data: Partial<Omit<CalendarEvent, 'id' | 'createdAt' | 'ownerId'>>): Promise<void> {
+  await updateDoc(doc(db, 'calendarEvents', id), data);
+  await addAuditLog('update', 'Calendar', `Updated calendar event ${id}`, { entityId: id, after: data });
+}
+
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'calendarEvents', id));
+  await addAuditLog('delete', 'Calendar', `Deleted calendar event ${id}`, { entityId: id });
 }

@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 const LoginPage         = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage     = lazy(() => import('@/pages/DashboardPage'))
 const BusinessAnalyticsPage = lazy(() => import('@/pages/BusinessAnalyticsPage'))
+const CalendarPage      = lazy(() => import('@/pages/CalendarPage'))
 // Operations
 const ProjectsPage      = lazy(() => import('@/pages/projects/ProjectsPage'))
 const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'))
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="/" element={<LoginPage />} />
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/calendar"  element={<CalendarPage />} />
               <Route path="/analytics" element={<BusinessAnalyticsPage />} />
 
               <Route path="/projects"    element={<ProjectsPage />} />

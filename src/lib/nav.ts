@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Wallet, UserCheck,
   FolderKanban, ListChecks, Target, Megaphone, Package,
   BarChart3, CalendarDays, Building2, Activity,
-  Bell, Truck, ExternalLink, ArrowLeftRight, Wrench,
+  Bell, Truck, ExternalLink, ArrowLeftRight, Wrench, CalendarRange,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/auth-context";
@@ -30,6 +30,7 @@ export const navGroups: NavGroup[] = [
     title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: "/calendar", label: "Calendar", icon: CalendarRange, roles: ["Executive"] },
       { href: "/analytics", label: "Business Analytics", icon: Activity, roles: ["Executive"] },
     ],
   },

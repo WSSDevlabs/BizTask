@@ -281,6 +281,14 @@ service cloud.firestore {
       allow delete: if isExecutive();
     }
 
+    // ── CALENDAR EVENTS ───────────────────────────────────────────────────────
+    // Personal schedule — only the owner can see or change their own events.
+
+    match /calendarEvents/{id} {
+      allow read, update, delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
     // ── COMPANY SETTINGS ──────────────────────────────────────────────────────
     // Singleton doc (settings/company) holding the company logo etc. Any staff
     // member can read it (used to render branding); only Executive can write.

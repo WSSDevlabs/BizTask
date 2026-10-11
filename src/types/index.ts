@@ -465,6 +465,22 @@ export interface Subscription {
   createdAt: FireDate;
 }
 
+// ── CALENDAR ─────────────────────────────────────────────────────────────────
+// Personal schedule entries (meetings, appointments). Private to their owner;
+// the calendar page overlays deadlines from other modules on top of these.
+
+export interface CalendarEvent {
+  id: string;
+  ownerId: string;      // Firebase Auth uid
+  title: string;
+  description?: string;
+  location?: string;
+  allDay: boolean;
+  start: FireDate;
+  end: FireDate;
+  createdAt: FireDate;
+}
+
 // ── MAINTENANCE ──────────────────────────────────────────────────────────────
 // Recurring renewals/upkeep owned by a project team — e.g. client domain or
 // hosting renewals. Distinct from Subscriptions, which are company overhead.
