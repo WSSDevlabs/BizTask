@@ -179,6 +179,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 // query. A mismatched ID means the rules can never resolve that user's role.
 export async function addEmployee(uid: string, data: Omit<Employee, 'id' | 'createdAt'>): Promise<string> {
   await setDoc(doc(db, 'employees', uid), { ...data, createdAt: Timestamp.now() });
+  await setDoc(doc(db, 'workerLogins', data.workerId), { email: data.email });
   await addAuditLog('create', 'Employees', `Created employee ${data.fullName}`, { entityId: uid });
   return uid;
 }
@@ -196,9 +197,33 @@ export async function updateEmployee(id: string, data: Partial<Omit<Employee, 'i
   await addAuditLog('update', 'Employees', `Updated employee ${id}`, { entityId: id, after: data });
 }
 
-export async function deleteEmployee(id: string): Promise<void> {
+export async function deleteEmployee(id: string, workerId?: string): Promise<void> {
   await deleteDoc(doc(db, 'employees', id));
+  if (workerId) await deleteDoc(doc(db, 'workerLogins', workerId));
   await addAuditLog('delete', 'Employees', `Deleted employee ${id}`, { entityId: id });
+}
+
+// ── WORKER LOGINS ────────────────────────────────────────────────────────────
+// workerLogins/{workerId} → { email } is the only data readable before sign-in,
+// so the login page can turn a Worker ID into an email without exposing the
+// employees collection. Kept in sync by addEmployee / deleteEmployee.
+
+export async function getWorkerLoginEmail(workerId: string): Promise<string | null> {
+  if (!workerId || workerId.includes('/')) return null;
+  const snap = await getDoc(doc(db, 'workerLogins', workerId));
+  return snap.exists() ? (snap.data().email as string) : null;
+}
+
+// Backfills entries for employees created before workerLogins existed.
+// Only HR/Executive can write workerLogins, so call it for those roles only.
+export async function syncWorkerLogins(): Promise<void> {
+  const employees = await getEmployees();
+  for (const e of employees) {
+    if (!e.workerId || !e.email || e.workerId.includes('/')) continue;
+    const ref = doc(db, 'workerLogins', e.workerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists() || snap.data().email !== e.email) await setDoc(ref, { email: e.email });
+  }
 }
 
 // ── DEPARTMENTS ──────────────────────────────────────────────────────────────

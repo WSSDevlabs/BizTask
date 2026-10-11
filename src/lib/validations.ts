@@ -21,7 +21,7 @@ export const employeeSchema = z.object({
   // Full name is required for identification
   fullName: z.string().min(1, 'Full name is required'),
   // Worker ID is a unique company identifier
-  workerId: z.string().min(1, 'Worker ID is required'),
+  workerId: z.string().min(1, 'Worker ID is required').regex(/^[A-Za-z0-9_-]+$/, 'Use letters, numbers, - or _ only'),
   // Position/title within the company
   position: z.string().min(1, 'Position is required'),
   // Email must be valid for Firebase Auth account creation

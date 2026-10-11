@@ -3,6 +3,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { env } from "@/lib/env";
+import { syncWorkerLogins } from "@/lib/db";
 import type { Employee } from "@/types";
 
 export type Role = "Executive" | "HR" | "Staff" | null;
@@ -69,6 +70,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const empRole = (emp.role as string) === "Admin" ? "Executive" : emp.role;
           setRole(currentUser.email === HR_EMAIL ? "HR" : (empRole as Role));
           setEmployee(emp);
+          if (empRole === "Executive" || empRole === "HR") {
+            syncWorkerLogins().catch((err) => console.error("Worker login sync failed:", err));
+          }
         } else {
           setRole(currentUser.email === HR_EMAIL ? "HR" : "Staff");
           setEmployee(null);

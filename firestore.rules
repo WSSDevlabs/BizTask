@@ -52,6 +52,18 @@ service cloud.firestore {
       allow delete: if isExecutive();
     }
 
+    // ── WORKER LOGINS ─────────────────────────────────────────────────────────
+    // workerLogins/{workerId} → { email }. The ONLY data readable before sign-in:
+    // the login page fetches one doc by exact Worker ID. Listing is denied, so
+    // the IDs can't be enumerated.
+
+    match /workerLogins/{workerId} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isHR() && request.resource.data.keys().hasOnly(['email']);
+      allow delete: if isHR();
+    }
+
     // ── CUSTOMERS ─────────────────────────────────────────────────────────────
 
     match /customers/{id} {

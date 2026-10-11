@@ -175,7 +175,7 @@ export default function EmployeesPage() {
       <DeleteConfirmModal
         isOpen={!!toDelete}
         onClose={() => setToDelete(null)}
-        onConfirm={async () => { if (toDelete) await deleteEmployee(toDelete.id); setToDelete(null); }}
+        onConfirm={async () => { if (toDelete) await deleteEmployee(toDelete.id, toDelete.workerId); setToDelete(null); }}
         title="Delete Employee"
         description={`Remove "${toDelete?.fullName}" from the directory? (Their auth login is not deleted.)`}
       />

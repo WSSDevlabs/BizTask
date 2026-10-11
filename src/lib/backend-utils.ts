@@ -9,6 +9,7 @@ import {
   browserSessionPersistence,
 } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { getWorkerLoginEmail } from '@/lib/db';
 
 function isEmail(str: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
@@ -20,12 +21,19 @@ export async function loginAdmin(identifier: string, password: string, remember 
   if (identifier === env.hrLoginShortcut) {
     email = env.hrMasterEmail;
   } else if (!isEmail(identifier)) {
-    // Worker ID lookup (e.g. "RZ01") — allowed by public list rule on employees, limit(1) only
-    const snap = await getDocs(
-      query(collection(db, 'employees'), where('workerId', '==', identifier), limit(1))
-    );
-    if (snap.empty) throw new Error('Worker ID not found.');
-    email = snap.docs[0].data().email;
+    // Worker ID lookup (e.g. "RZ01") via the public workerLogins/{workerId} doc.
+    const found = await getWorkerLoginEmail(identifier).catch(() => null);
+    if (found) {
+      email = found;
+    } else {
+      // TEMPORARY fallback while workerLogins is being backfilled — removed
+      // together with the public list rule on employees.
+      const snap = await getDocs(
+        query(collection(db, 'employees'), where('workerId', '==', identifier), limit(1))
+      );
+      if (snap.empty) throw new Error('Worker ID not found.');
+      email = snap.docs[0].data().email;
+    }
   }
 
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
